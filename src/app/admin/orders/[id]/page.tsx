@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import StatusActions from "@/components/admin/StatusActions";
 import StatusBadge from "@/components/admin/StatusBadge";
 import { getOrder } from "@/lib/admin-data";
+import { getCurrentUser } from "@/lib/auth";
 import { formatPrice } from "@/lib/format";
+import { can } from "@/lib/permissions";
 
 export default async function OrderDetailPage({
   params,
@@ -12,8 +14,10 @@ export default async function OrderDetailPage({
   const orderId = Number(id);
   if (!Number.isInteger(orderId)) notFound();
 
-  const order = await getOrder(orderId);
+  const order = await getOrder(orderId); // checks "admin:view" inside
   if (!order) notFound();
+ 
+  const user = await getCurrentUser();
 
   return (
     <section className="max-w-3xl">
@@ -27,7 +31,8 @@ export default async function OrderDetailPage({
           <StatusBadge status={order.status} />
         </span>
       </p>
-      <StatusActions orderId={order.id} status={order.status} />
+      {/* A UI hint only: the real check is inside updateOrderStatusAction */}
+      {can(user, "orders:update") && <StatusActions orderId={order.id} status={order.status} />}
 
       <table className="mt-6 w-full overflow-hidden rounded-xl bg-white text-left text-sm shadow-sm">
         <thead className="bg-stone-50 text-xs uppercase text-ink/60">
