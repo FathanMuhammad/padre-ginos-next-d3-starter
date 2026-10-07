@@ -41,6 +41,7 @@ export interface OrderDetail extends Omit<OrderSummary, "items"> {
 }
 
 export async function getProductRows(): Promise<ProductRow[]> {
+  await requirePermission("products:manage");
   await simulateLatency("read");
   await failReadIfSimulated();
   const [types, prices, sales] = await Promise.all([
@@ -191,7 +192,6 @@ async function topPizzas(): Promise<TopPizza[]> {
   "use cache";
   cacheLife("hours");
   cacheTag("sales");
-  await requirePermission("admin:view");
   await simulateLatency("read");
   await new Promise((resolve) => setTimeout(resolve, 1500));
   return all(
@@ -221,6 +221,7 @@ export async function getStatusCounts(): Promise<Record<OrderStatus, number>> {
 export async function getSalesBySize(
   id: string,
 ): Promise<{ size: PizzaSize; sold: number }[]> {
+  await requirePermission("products:manage");
   await simulateLatency("read");
   await failReadIfSimulated();
   return all(

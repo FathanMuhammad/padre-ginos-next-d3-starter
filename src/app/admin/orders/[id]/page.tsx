@@ -47,9 +47,13 @@ export default async function OrderDetailPage({
           {order.lines.map((line, i) => (
             <tr key={i} className="border-t border-black/5">
               <td className="px-4 py-2">
-                <Link href={`/admin/products/${line.pizzaId}`} className="hover:underline">
-                  {line.name}
-                </Link>
+                {can(user, "products:manage") ? (
+                  <Link href={`/admin/products/${line.pizzaId}`} className="hover:underline">
+                    {line.name}
+                  </Link>
+                ) : (
+                  <span>{line.name}</span>
+                )}
               </td>
               <td className="px-4 py-2">{line.size}</td>
               <td className="px-4 py-2 text-right">{line.quantity}</td>

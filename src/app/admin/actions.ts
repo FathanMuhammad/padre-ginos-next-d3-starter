@@ -27,6 +27,9 @@ export async function updatePricesAction(
   _prev: PriceFormState,
   formData: FormData,
 ): Promise<PriceFormState> {
+  // 1. Who are you, and may you do this?
+  await requirePermission("products:manage");
+
   const id = formData.get("id");
   const values = {
     S: String(formData.get("S") ?? ""),
