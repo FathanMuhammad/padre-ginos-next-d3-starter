@@ -8,3 +8,8 @@ export const orderStatusInput = z.object({
   orderId: z.coerce.number().int().positive(),
   status: z.enum(ORDER_STATUSES),
 });
+
+// TODO P2: profileSchema
+//   name:    wajib, 2–40 karakter (setelah trim)
+//   phone:   boleh kosong (→ null); kalau diisi 8–15 digit, boleh diawali "+"
+//   address: boleh kosong (→ null); maksimal 200 karakter
