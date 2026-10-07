@@ -1,6 +1,10 @@
 "use server";
 
+import { refresh } from "next/cache";
+import { requireUser } from "@/lib/auth";
+import { profileSchema } from "@/lib/schemas";
 import type { Profile } from "@/lib/types";
+import { updateProfile } from "@/lib/users";
 
 type Field = keyof Profile; // "name" | "phone" | "address"
 
@@ -11,14 +15,46 @@ export type ProfileFormState = {
   values: Record<Field, string>;
 } | null;
 
-// TODO P2: updateProfileAction
-//   1. Siapa? Ambil user dari session (bukan dari form).
-//   2. Validasi dengan profileSchema. Gagal → kembalikan errors + values.
-//   3. Simpan dengan updateProfile(user.id, data), lalu refresh().
 export async function updateProfileAction(
   _prev: ProfileFormState,
   formData: FormData,
 ): Promise<ProfileFormState> {
-  void formData;
-  return null;
+  // 1. Siapa? Ambil user dari session (bukan dari form).
+  const user = await requireUser();
+
+  const values: Record<Field, string> = {
+    name: String(formData.get("name") ?? ""),
+    phone: String(formData.get("phone") ?? ""),
+    address: String(formData.get("address") ?? ""),
+  };
+
+  // 2. Validasi dengan profileSchema. Gagal → kembalikan errors + values.
+  const parsed = profileSchema.safeParse(values);
+  if (!parsed.success) {
+    const fieldErrors = parsed.error.flatten().fieldErrors;
+    const errors: Partial<Record<Field | "form", string>> = {};
+    if (fieldErrors.name?.[0]) errors.name = fieldErrors.name[0];
+    if (fieldErrors.phone?.[0]) errors.phone = fieldErrors.phone[0];
+    if (fieldErrors.address?.[0]) errors.address = fieldErrors.address[0];
+
+    return {
+      ok: false,
+      errors,
+      values,
+    };
+  }
+
+  // 3. Simpan dengan updateProfile(user.id, data), lalu refresh().
+  await updateProfile(user.id, parsed.data);
+  refresh();
+
+  return {
+    ok: true,
+    errors: {},
+    values: {
+      name: parsed.data.name,
+      phone: parsed.data.phone ?? "",
+      address: parsed.data.address ?? "",
+    },
+  };
 }
