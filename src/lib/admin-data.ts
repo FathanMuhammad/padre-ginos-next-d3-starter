@@ -4,6 +4,7 @@ import { all, get, run } from "./db";
 import { failReadIfSimulated, simulateLatency } from "./demo";
 import type { OrderStatus } from "./orders";
 import type { PizzaSize } from "./types";
+import { requirePermission } from "./auth";
 
 // Data access for the staff dashboard (/admin).
 // Staff should see the current state, so almost nothing here is cached.
@@ -82,6 +83,7 @@ export async function getOrders({
   page: number;
   date: string | null;
 }): Promise<{ orders: OrderSummary[]; totalPages: number }> {
+  await requirePermission("admin:view");
   await simulateLatency("read");
   await failReadIfSimulated();
   const offset = (page - 1) * ORDERS_PAGE_SIZE;
@@ -114,6 +116,7 @@ export async function getOrders({
 }
 
 export async function getOrder(id: number): Promise<OrderDetail | null> {
+  await requirePermission("admin:view");
   await simulateLatency("read");
   const order = await get<{
     id: number;
@@ -160,6 +163,7 @@ export async function getLatestDay(): Promise<{
   orders: number;
   revenue: number;
 }> {
+  await requirePermission("admin:view");
   await simulateLatency("read");
   const row = await get<{ date: string; orders: number; revenue: number }>(
     `SELECT o.date, COUNT(DISTINCT o.order_id) AS orders,
@@ -174,13 +178,20 @@ export async function getLatestDay(): Promise<{
 }
 
 /** All-time best sellers. A heavy aggregate: slow on purpose. */
-export async function getTopPizzas(): Promise<
-  { id: string; name: string; sold: number; revenue: number }[]
-> {
-  // History does not change minute to minute: compute it once an hour at most
+export async function getTopPizzas(): Promise<TopPizza[]> {
+  // "use cache" cannot read cookies, so check first, then call the cached part
+  await requirePermission("admin:view");
+  return topPizzas();
+}
+
+type TopPizza = { id: string; name: string; sold: number; revenue: number };
+
+// Not exported: the only way in is through the check above
+async function topPizzas(): Promise<TopPizza[]> {
   "use cache";
   cacheLife("hours");
   cacheTag("sales");
+  await requirePermission("admin:view");
   await simulateLatency("read");
   await new Promise((resolve) => setTimeout(resolve, 1500));
   return all(
@@ -195,6 +206,7 @@ export async function getTopPizzas(): Promise<
 
 /** Orders per status on the latest day. Fails when "Simulasi gagal" is on. */
 export async function getStatusCounts(): Promise<Record<OrderStatus, number>> {
+  await requirePermission("admin:view");
   await simulateLatency("read");
   await failReadIfSimulated();
   const rows = await all<{ status: OrderStatus; n: number }>(
