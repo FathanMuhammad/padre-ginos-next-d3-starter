@@ -1,7 +1,9 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { z } from "zod";
 import { requireUser } from "@/lib/auth";
+import { shouldFail, simulateLatency } from "@/lib/demo";
 import { profileSchema } from "@/lib/schemas";
 import type { Profile } from "@/lib/types";
 import { updateProfile } from "@/lib/users";
@@ -19,42 +21,39 @@ export async function updateProfileAction(
   _prev: ProfileFormState,
   formData: FormData,
 ): Promise<ProfileFormState> {
-  // 1. Siapa? Ambil user dari session (bukan dari form).
+  // 1. Siapa? Ambil user dari session (bukan dari form) -> Mencegah IDOR
   const user = await requireUser();
 
+  // Validate the profile fields
   const values: Record<Field, string> = {
     name: String(formData.get("name") ?? ""),
     phone: String(formData.get("phone") ?? ""),
     address: String(formData.get("address") ?? ""),
   };
 
-  // 2. Validasi dengan profileSchema. Gagal → kembalikan errors + values.
   const parsed = profileSchema.safeParse(values);
   if (!parsed.success) {
-    const fieldErrors = parsed.error.flatten().fieldErrors;
-    const errors: Partial<Record<Field | "form", string>> = {};
-    if (fieldErrors.name?.[0]) errors.name = fieldErrors.name[0];
-    if (fieldErrors.phone?.[0]) errors.phone = fieldErrors.phone[0];
-    if (fieldErrors.address?.[0]) errors.address = fieldErrors.address[0];
-
+    const { fieldErrors } = z.flattenError(parsed.error);
     return {
       ok: false,
-      errors,
+      errors: {
+        name: fieldErrors.name?.[0],
+        phone: fieldErrors.phone?.[0],
+        address: fieldErrors.address?.[0],
+      },
       values,
     };
   }
 
-  // 3. Simpan dengan updateProfile(user.id, data), lalu refresh().
-  await updateProfile(user.id, parsed.data);
-  refresh();
+  await simulateLatency("write");
+  if (await shouldFail()) {
+    return { ok: false, errors: { form: "Gagal menyimpan. Coba lagi." }, values };
+  }
 
-  return {
-    ok: true,
-    errors: {},
-    values: {
-      name: parsed.data.name,
-      phone: parsed.data.phone ?? "",
-      address: parsed.data.address ?? "",
-    },
-  };
+  // 2. Simpan HANYA data yang divalidasi ke user.id session -> Mencegah Mass Assignment
+  await updateProfile(user.id, parsed.data);
+
+  // The header shows the name: re-render with fresh data
+  refresh();
+  return { ok: true, errors: {}, values };
 }
